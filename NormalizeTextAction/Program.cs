@@ -3,9 +3,7 @@ using System;
 using System.Text.RegularExpressions;
 using System.Net.Http;
 using System.Text.Json;
-using System.Linq;
-using System.Text.Encoding;
-using System.Threading.Tasks;
+using System.Text;
 
 try
 {
@@ -103,7 +101,7 @@ static async Task CommentOnIssue(string repository, string issueNumber, string t
 
     var content = new StringContent(
         JsonSerializer.Serialize(new { body = comment }),
-        UTF8,
+        Encoding.UTF8,
         "application/json"
     );
 
@@ -129,7 +127,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
             string content = await getResponse.Content.ReadAsStringAsync();
             var fileData = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
             string base64Content = fileData["content"];
-            string existingJson = UTF8.GetString(Convert.FromBase64String(base64Content));
+            string existingJson = Encoding.UTF8.GetString(Convert.FromBase64String(base64Content));
             existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? [];
         }
     }
@@ -138,7 +136,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     existingItems.AddRange(newItems);
 
     string newJsonContent = JsonSerializer.Serialize(existingItems, new JsonSerializerOptions { WriteIndented = true });
-    string newBase64Content = Convert.ToBase64String(UTF8.GetBytes(newJsonContent));
+    string newBase64Content = Convert.ToBase64String(Encoding.UTF8.GetBytes(newJsonContent));
 
     var payload = new
     {
@@ -149,7 +147,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
 
     var putContent = new StringContent(
         JsonSerializer.Serialize(payload),
-        UTF8,
+        Encoding.UTF8,
         "application/json"
     );
 
