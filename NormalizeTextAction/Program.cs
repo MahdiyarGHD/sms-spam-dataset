@@ -1,12 +1,6 @@
-// NormalizeTextAction/Program.cs
-using System;
-using System.Text.RegularExpressions;
-using System.Net.Http;
-using System.Text.Json;
-
 try
 {
-    string issueBody = Environment.GetEnvironmentVariable("ISSUE_BODY") ?? ""; 
+    string issueBody = Environment.GetEnvironmentVariable("ISSUE_BODY") ?? "";
     string issueNumber = Environment.GetEnvironmentVariable("ISSUE_NUMBER") ?? "";
     string repository = Environment.GetEnvironmentVariable("REPOSITORY") ?? "";
     string githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "";
@@ -17,29 +11,33 @@ try
         return;
     }
 
-    var lines = issueBody.Split('\n');
+    // Remove the command from the start
+    string content = issueBody["!NormalizeAndAdd".Length..].Trim();
+
+    var pattern = @"(?<=^|\n)(?:- |\* )\s*";
+    var matches = Regex.Split(content, pattern)
+        .Select(s => s.Trim())
+        .Where(s => !string.IsNullOrEmpty(s))
+        .ToList();
+
     List<string> elements = [];
-    elements.AddRange(
-        from line in lines 
-        where line.Trim()
-            .StartsWith("- ") || line.Trim().StartsWith("* ") 
-        select line.Trim()[2..].Trim());
+    elements.AddRange(matches);
 
     if (elements.Count == 0)
     {
-        await CommentOnIssue(repository, issueNumber, githubToken, 
-            "No elements found to normalize. Please provide a list like:\n/normalize\n- item1\n- item2");
+        await CommentOnIssue(repository, issueNumber, githubToken,
+            "No elements found to normalize. Please provide a list like:\n!NormalizeAndAdd\n- item1\n- item2");
         return;
     }
 
     List<NormalizedItem> normalizedResults = [];
     normalizedResults.AddRange(
-        from element in elements 
+        from element in elements
         select new NormalizedItem { Text = NormalizeText(element), Label = 1 });
 
     await UpdateJsonFile(repository, githubToken, normalizedResults);
 
-    string comment = "Normalization Results added to JSON file:\n\n" + 
+    string comment = "Normalization Results added to JSON file:\n\n" +
                      string.Join("\n\n", normalizedResults.Select(r => $"- {r.Text}"));
     await CommentOnIssue(repository, issueNumber, githubToken, comment);
 }
@@ -94,7 +92,7 @@ static async Task CommentOnIssue(string repository, string issueNumber, string t
     client.DefaultRequestHeaders.Add("User-Agent", "NormalizeTextAction");
 
     string apiUrl = $"https://api.github.com/repos/{repository}/issues/{issueNumber}/comments";
-    
+
     var content = new StringContent(
         JsonSerializer.Serialize(new { body = comment }),
         System.Text.Encoding.UTF8,
@@ -128,7 +126,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
         }
     }
     catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) {}
-    
+
     existingItems.AddRange(newItems);
 
     string newJsonContent = JsonSerializer.Serialize(existingItems, new JsonSerializerOptions { WriteIndented = true });
