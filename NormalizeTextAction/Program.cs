@@ -1,3 +1,8 @@
+using System;
+using System.Text.RegularExpressions;
+using System.Net.Http;
+using System.Text.Json;
+
 try
 {
     string issueBody = Environment.GetEnvironmentVariable("ISSUE_BODY") ?? "";
