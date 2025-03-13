@@ -1,10 +1,7 @@
-// NormalizeTextAction/Program.cs
-using System;
+
 using System.Text.RegularExpressions;
-using System.Net.Http;
 using System.Text.Json;
 using System.Text;
-
 try
 {
     string commentBody = Environment.GetEnvironmentVariable("COMMENT_BODY") ?? "";
@@ -20,7 +17,7 @@ try
 
     string content = commentBody["!NormalizeAndAdd".Length..].Trim();
 
-    var pattern = @"(?<=^|\n)(?:- |\* )\s*";
+    var pattern = @"(?:- |\* )\s*"; 
     var matches = Regex.Split(content, pattern)
         .Select(s => s.Trim())
         .Where(s => !string.IsNullOrEmpty(s))
@@ -119,16 +116,25 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     string apiUrl = $"https://api.github.com/repos/{repository}/contents/{filePath}";
 
     List<NormalizedItem> existingItems = [];
+    string? currentSha = null;
     try
     {
         var getResponse = await client.GetAsync(apiUrl);
         if (getResponse.IsSuccessStatusCode)
         {
             string content = await getResponse.Content.ReadAsStringAsync();
-            var fileData = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-            string base64Content = fileData["content"];
-            string existingJson = Encoding.UTF8.GetString(Convert.FromBase64String(base64Content));
-            existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? [];
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("content", out var contentProp))
+            {
+                string base64Content = contentProp.GetString();
+                string existingJson = Encoding.UTF8.GetString(Convert.FromBase64String(base64Content));
+                existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? [];
+            }
+            if (root.TryGetProperty("sha", out var shaProp))
+            {
+                currentSha = shaProp.GetString();
+            }
         }
     }
     catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) {}
@@ -142,7 +148,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     {
         message = $"Github Action: Add {newItems.Count} normalized items",
         content = newBase64Content,
-        sha = existingItems.Count > newItems.Count ? await GetFileSha(repository, filePath, token) : null
+        sha = currentSha
     };
 
     var putContent = new StringContent(
@@ -152,7 +158,12 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     );
 
     var putResponse = await client.PutAsync(apiUrl, putContent);
-    putResponse.EnsureSuccessStatusCode();
+    if (!putResponse.IsSuccessStatusCode)
+    {
+        Console.WriteLine($"Failed to update file: {putResponse.StatusCode}");
+        Console.WriteLine(await putResponse.Content.ReadAsStringAsync());
+        putResponse.EnsureSuccessStatusCode();
+    }
 }
 
 static async Task<string> GetFileSha(string repository, string filePath, string token)
