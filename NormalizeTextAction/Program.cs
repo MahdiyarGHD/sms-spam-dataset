@@ -1,23 +1,26 @@
+// NormalizeTextAction/Program.cs
 using System;
 using System.Text.RegularExpressions;
 using System.Net.Http;
 using System.Text.Json;
+using System.Linq;
+using System.Text.Encoding;
+using System.Threading.Tasks;
 
 try
 {
-    string issueBody = Environment.GetEnvironmentVariable("ISSUE_BODY") ?? "";
+    string commentBody = Environment.GetEnvironmentVariable("COMMENT_BODY") ?? "";
     string issueNumber = Environment.GetEnvironmentVariable("ISSUE_NUMBER") ?? "";
     string repository = Environment.GetEnvironmentVariable("REPOSITORY") ?? "";
     string githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "";
 
-    if (!issueBody.StartsWith("!NormalizeAndAdd"))
+    if (!commentBody.StartsWith("!NormalizeAndAdd"))
     {
-        Console.WriteLine("No normalization command found in issue");
+        Console.WriteLine("No normalization command found in comment");
         return;
     }
 
-    // Remove the command from the start
-    string content = issueBody["!NormalizeAndAdd".Length..].Trim();
+    string content = commentBody["!NormalizeAndAdd".Length..].Trim();
 
     var pattern = @"(?<=^|\n)(?:- |\* )\s*";
     var matches = Regex.Split(content, pattern)
@@ -100,7 +103,7 @@ static async Task CommentOnIssue(string repository, string issueNumber, string t
 
     var content = new StringContent(
         JsonSerializer.Serialize(new { body = comment }),
-        System.Text.Encoding.UTF8,
+        UTF8,
         "application/json"
     );
 
@@ -126,7 +129,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
             string content = await getResponse.Content.ReadAsStringAsync();
             var fileData = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
             string base64Content = fileData["content"];
-            string existingJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(base64Content));
+            string existingJson = UTF8.GetString(Convert.FromBase64String(base64Content));
             existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? [];
         }
     }
@@ -135,7 +138,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     existingItems.AddRange(newItems);
 
     string newJsonContent = JsonSerializer.Serialize(existingItems, new JsonSerializerOptions { WriteIndented = true });
-    string newBase64Content = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(newJsonContent));
+    string newBase64Content = Convert.ToBase64String(UTF8.GetBytes(newJsonContent));
 
     var payload = new
     {
@@ -146,7 +149,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
 
     var putContent = new StringContent(
         JsonSerializer.Serialize(payload),
-        System.Text.Encoding.UTF8,
+        UTF8,
         "application/json"
     );
 
