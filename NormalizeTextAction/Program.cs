@@ -80,7 +80,9 @@ static string NormalizeText(string text)
     modifiedText = modifiedText
         .Replace("ك", "ک")
         .Replace("ي", "ی")
-        .Replace("ة", "ه");
+        .Replace("ة", "ه")
+        .Replace("لغو11", "")
+        .Replace("لغو۱۱", "");
 
     // 6. Replace USSD codes
     modifiedText = Regex.Replace(modifiedText,
