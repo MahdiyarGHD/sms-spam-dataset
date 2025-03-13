@@ -1,0 +1,46 @@
+# .github/workflows/normalize-text.yml
+name: Normalize Text Action
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+
+jobs:
+  normalize-text:
+    runs-on: ubuntu-latest
+    if: github.actor == github.repository_owner
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run normalization script
+        run: dotnet run --project NormalizeTextAction/NormalizeTextAction.csproj
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+
+  notify-non-owner:
+    runs-on: ubuntu-latest
+    if: github.actor != github.repository_owner
+    steps:
+      - name: Comment on issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'This action can only be triggered by the repository owner.'
+            })
