@@ -2,6 +2,8 @@
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text;
+using System.Text.Encodings.Web;
+
 try
 {
     string commentBody = Environment.GetEnvironmentVariable("COMMENT_BODY") ?? "";
@@ -17,7 +19,7 @@ try
 
     string content = commentBody["!NormalizeAndAdd".Length..].Trim();
 
-    var pattern = @"(?:- |\* )\s*"; 
+    var pattern = @"(?:- |\* )\s*";
     var matches = Regex.Split(content, pattern)
         .Select(s => s.Trim())
         .Where(s => !string.IsNullOrEmpty(s))
@@ -141,7 +143,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
 
     existingItems.AddRange(newItems);
 
-    string newJsonContent = JsonSerializer.Serialize(existingItems, new JsonSerializerOptions { WriteIndented = true });
+    string newJsonContent = JsonSerializer.Serialize(existingItems, new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping});
     string newBase64Content = Convert.ToBase64String(Encoding.UTF8.GetBytes(newJsonContent));
 
     var payload = new
