@@ -6,7 +6,8 @@ on:
     types: [opened]
 
 permissions:
-  contents: write
+  contents: write  
+  issues: write   
 
 jobs:
   normalize-text:
@@ -32,6 +33,8 @@ jobs:
   notify-non-owner:
     runs-on: ubuntu-latest
     if: github.actor != github.repository_owner
+    permissions:
+      issues: write  
     steps:
       - name: Comment on issue
         uses: actions/github-script@v6
