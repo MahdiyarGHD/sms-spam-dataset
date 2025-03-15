@@ -76,15 +76,17 @@ static string NormalizeText(string text)
         @"[\s\u200C]+",
         " ").Trim();
 
-    // 5. Normalize Persian text directly
+    // 5. Normalize numbers
+    modifiedText = ToPersianDigits(modifiedText);
+    
+    // 6. Normalize Persian text directly
     modifiedText = modifiedText
         .Replace("ك", "ک")
         .Replace("ي", "ی")
         .Replace("ة", "ه")
-        .Replace("لغو11", "")
         .Replace("لغو۱۱", "");
 
-    // 6. Replace USSD codes
+    // 7. Replace USSD codes
     modifiedText = Regex.Replace(modifiedText,
         @"[\*\#][\d\*]{2,15}\#",
         "[USSD_REMOVED]");
@@ -170,19 +172,30 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
     }
 }
 
-static async Task<string> GetFileSha(string repository, string filePath, string token)
+static string ToPersianDigits(string input)
 {
-    using var client = new HttpClient();
-    client.DefaultRequestHeaders.Add("Authorization", $"token {token}");
-    client.DefaultRequestHeaders.Add("User-Agent", "NormalizeTextAction");
+    const string PersianDigits = "۰۱۲۳۴۵۶۷۸۹";
+    
+    if (string.IsNullOrEmpty(input))
+        return input;
 
-    string apiUrl = $"https://api.github.com/repos/{repository}/contents/{filePath}";
-    var response = await client.GetAsync(apiUrl);
-    response.EnsureSuccessStatusCode();
-
-    string content = await response.Content.ReadAsStringAsync();
-    var fileData = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-    return fileData["sha"];
+    System.Text.StringBuilder sb = new System.Text.StringBuilder(input.Length);
+    foreach (char c in input)
+    {
+        if (c >= '0' && c <= '9') 
+        {
+            int digit = c - '0';
+            sb.Append(PersianDigits[digit]);
+        }
+        else if (c >= '٠' && c <= '٩') 
+        {
+            int digit = c - '٠';
+            sb.Append(PersianDigits[digit]);
+        }
+        else 
+            sb.Append(c);
+    }
+    return sb.ToString();
 }
 
 record NormalizedItem
