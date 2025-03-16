@@ -11,13 +11,16 @@ try
     string repository = Environment.GetEnvironmentVariable("REPOSITORY") ?? "";
     string githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? "";
 
-    if (!commentBody.StartsWith("!NormalizeAndAdd"))
+    bool hasHam = commentBody.StartsWith("!AddHam");
+    bool hasSpam = commentBody.StartsWith("!AddSpam");
+    
+    if (!hasSpam && !hasHam)
     {
         Console.WriteLine("No normalization command found in comment");
         return;
     }
 
-    string content = commentBody["!NormalizeAndAdd".Length..].Trim();
+    string content = hasSpam ? commentBody["!AddSpam".Length..].Trim() : commentBody["!AddHam".Length..].Trim();
 
     var pattern = @"(?:- |\* )\s*";
     var matches = Regex.Split(content, pattern)
@@ -38,7 +41,7 @@ try
     List<NormalizedItem> normalizedResults = [];
     normalizedResults.AddRange(
         from element in elements
-        select new NormalizedItem { Text = NormalizeText(element), Label = 1 });
+        select new NormalizedItem { Text = NormalizeText(element), Label = hasSpam ? 1 : 0 });
 
     await UpdateJsonFile(repository, githubToken, normalizedResults);
 
