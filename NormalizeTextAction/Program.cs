@@ -1,6 +1,6 @@
 
 using System.Text.RegularExpressions;
-using System.Text.Json;
+using System.Text.Json;ع
 using System.Text;
 using System.Text.Encodings.Web;
 
@@ -13,7 +13,7 @@ try
 
     bool hasHam = commentBody.StartsWith("!AddHam");
     bool hasSpam = commentBody.StartsWith("!AddSpam");
-    
+
     if (!hasSpam && !hasHam)
     {
         Console.WriteLine("No normalization command found in comment");
@@ -63,12 +63,12 @@ static string NormalizeText(string text)
     modifiedText = Regex.Replace(modifiedText,
         @"(?:https?://)?(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?:\.[a-zA-Z]{2,})(?:/[^\s]*)?",
         "[LINK_REMOVED]");
-    
+
     // 2. Replace phone numbers
     modifiedText = Regex.Replace(modifiedText,
         @"(?:\+|00)?(?:\d[\s-]?){9,12}\d",
         "[MASKED_NUMBER]");
-    
+
     // 3. Remove emojis
     modifiedText = Regex.Replace(modifiedText,
         @"[\uD83C-\uD83E][\uDC00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEFF]|[\u2600-\u26FF\u2700-\u27BF]",
@@ -168,7 +168,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
             string content = await getResponse.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
-        
+
             if (root.TryGetProperty("download_url", out var downloadUrlProp))
             {
                 string downloadUrl = downloadUrlProp.GetString() ?? "";
@@ -182,7 +182,7 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
                     }
                 }
             }
-        
+
             if (root.TryGetProperty("sha", out var shaProp))
             {
                 currentSha = shaProp.GetString();
@@ -237,24 +237,24 @@ static string ReplaceTimes(string text)
 static string ToPersianDigits(string input)
 {
     const string PersianDigits = "۰۱۲۳۴۵۶۷۸۹";
-    
+
     if (string.IsNullOrEmpty(input))
         return input;
 
     System.Text.StringBuilder sb = new System.Text.StringBuilder(input.Length);
     foreach (char c in input)
     {
-        if (c >= '0' && c <= '9') 
+        if (c >= '0' && c <= '9')
         {
             int digit = c - '0';
             sb.Append(PersianDigits[digit]);
         }
-        else if (c >= '٠' && c <= '٩') 
+        else if (c >= '٠' && c <= '٩')
         {
             int digit = c - '٠';
             sb.Append(PersianDigits[digit]);
         }
-        else 
+        else
             sb.Append(c);
     }
     return sb.ToString();
