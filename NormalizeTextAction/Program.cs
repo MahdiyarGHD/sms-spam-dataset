@@ -157,9 +157,9 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
 
     string filePath = "data.json";
     string apiUrl = $"https://api.github.com/repos/{repository}/contents/{filePath}";
-
     List<NormalizedItem> existingItems = [];
     string? currentSha = null;
+
     try
     {
         var getResponse = await client.GetAsync(apiUrl);
@@ -168,19 +168,31 @@ static async Task UpdateJsonFile(string repository, string token, List<Normalize
             string content = await getResponse.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
-            if (root.TryGetProperty("content", out var contentProp))
+        
+            if (root.TryGetProperty("download_url", out var downloadUrlProp))
             {
-                string base64Content = contentProp.GetString();
-                string existingJson = Encoding.UTF8.GetString(Convert.FromBase64String(base64Content));
-                existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? [];
+                string downloadUrl = downloadUrlProp.GetString() ?? "";
+                if (!string.IsNullOrEmpty(downloadUrl))
+                {
+                    var fileResponse = await client.GetAsync(downloadUrl);
+                    if (fileResponse.IsSuccessStatusCode)
+                    {
+                        string existingJson = await fileResponse.Content.ReadAsStringAsync();
+                        existingItems = JsonSerializer.Deserialize<List<NormalizedItem>>(existingJson) ?? new List<NormalizedItem>();
+                    }
+                }
             }
+        
             if (root.TryGetProperty("sha", out var shaProp))
             {
                 currentSha = shaProp.GetString();
             }
         }
     }
-    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) {}
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+    }
+
 
     existingItems.AddRange(newItems);
 
