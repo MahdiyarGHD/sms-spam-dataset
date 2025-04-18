@@ -22450,5 +22450,9 @@
   {
     "Text": "بسته های داغ امروز، ویژه شما! مشاهده و فعال سازی: [LINK_REMOVED] و یا شماره گیری کد: [USSD_REMOVED] [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER].[RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت روزانه [RANDOM_NUMBER] تومان",
     "Label": 1
+  },
+  {
+    "Text": "شرکت توزیع برق مشهد کد فعالسازی [RANDOM_NUMBER] @[LINK_REMOVED] #[RANDOM_NUMBER]",
+    "Label": 0
   }
 ]
