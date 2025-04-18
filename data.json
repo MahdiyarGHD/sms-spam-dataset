@@ -22446,5 +22446,9 @@
   {
     "Text": "[RANDOM_NUMBER] هزار تومن تخفیف اسنپ برای [RANDOM_NUMBER] سفر! برای [RANDOM_NUMBER] سفر، [RANDOM_NUMBER]٪ هر بار تا سقف [RANDOM_NUMBER] هزار تومن [RANDOM_NUMBER] سفر بعدی، [RANDOM_NUMBER]٪ هر بار تا سقف [RANDOM_NUMBER]هزار تومن کد: [ENGLISH]-[RANDOM_NUMBER][ENGLISH][RANDOM_NUMBER][ENGLISH] اعتبار: [RANDOM_NUMBER]/[RANDOM_NUMBER] درخواست: [LINK_REMOVED] لغو [RANDOM_NUMBER]",
     "Label": 1
+  },
+  {
+    "Text": "بسته های داغ امروز، ویژه شما! مشاهده و فعال سازی: [LINK_REMOVED] و یا شماره گیری کد: [USSD_REMOVED] [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER].[RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت [RANDOM_NUMBER] روزه [RANDOM_NUMBER] تومان [RANDOM_NUMBER] گیگ اینترنت روزانه [RANDOM_NUMBER] تومان",
+    "Label": 1
   }
 ]
