@@ -71,7 +71,7 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           dir="$RUNNER_TEMP/model"
-          notes=$(jq -r '"Trained on \(.metrics.rows) messages (\(.metrics.spamRows) spam). Macro accuracy \(.metrics.macroAccuracy), micro accuracy \(.metrics.microAccuracy) on a 10% holdout.\n\nNormalizer v\(.normalizer) · SHA-256 \(.sha256)"' "$dir/manifest.json")
+          notes=$(jq -r '.metrics as $m | "Trained on \($m.rows) messages (\($m.spamRows) spam). \($m.folds)-fold macro accuracy \($m.macroAccuracy) (SD \($m.macroAccuracySd)).\nAt threshold \($m.threshold): \($m.realHiddenRate * 10000 | round / 100)% of real messages hidden, \($m.spamCaughtRate * 10000 | round / 100)% of spam caught.\n\nNormalizer v\(.normalizer) · SHA-256 \(.sha256)"' "$dir/manifest.json")
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$dir/manifest.json" "$dir/spam.mlnet" --clobber
             gh release edit "$TAG" --draft=false --prerelease=false --latest --title "Model v$VERSION" --notes "$notes"

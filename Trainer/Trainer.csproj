@@ -9,7 +9,6 @@
     <!-- Same ML.NET version as the Gheychi app, so the saved model loads there. -->
     <ItemGroup>
         <PackageReference Include="Microsoft.ML" Version="5.0.0" />
-        <PackageReference Include="Microsoft.ML.FastTree" Version="5.0.0" />
     </ItemGroup>
 
     <ItemGroup>

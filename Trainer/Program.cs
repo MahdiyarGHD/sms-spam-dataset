@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.ML;
 using Microsoft.ML.Data;
-using Microsoft.ML.Trainers.FastTree;
 using Normalizer;
 
 // Trainer <data.json> <version> <output directory>
@@ -18,8 +17,14 @@ if (args.Length != 3 || !int.TryParse(args[1], NumberStyles.None, CultureInfo.In
 const string ModelFile = "spam.mlnet";
 const string SpamLabel = "spam";
 const string HamLabel = "ham";
-const double MinMacroAccuracy = 0.90;
+const int Folds = 5;
 const int Seed = 1;
+
+// The app's default spam threshold (SpamDetector.DefaultThreshold). The gate is about what users see at that setting:
+// a real message hidden as spam costs far more than an ad that reaches the inbox.
+const float AppThreshold = 0.85f;
+const double MinMacroAccuracy = 0.90;
+const double MaxRealHiddenRate = 0.04;
 
 var dataPath = args[0];
 var outputDirectory = args[2];
@@ -42,18 +47,43 @@ Console.WriteLine($"{raw.Count} items, {rows.Count} distinct usable rows ({spamC
 var ml = new MLContext(Seed);
 var data = ml.Data.LoadFromEnumerable(rows);
 
-var split = ml.Data.TrainTestSplit(data, testFraction: 0.1, seed: Seed);
-var metrics = ml.MulticlassClassification.Evaluate(BuildPipeline(ml).Fit(split.TrainSet).Transform(split.TestSet));
-Console.WriteLine($"Macro accuracy {metrics.MacroAccuracy:F4}, micro accuracy {metrics.MicroAccuracy:F4}, log loss {metrics.LogLoss:F4}");
-Console.WriteLine(metrics.ConfusionMatrix.GetFormattedConfusionTable());
+// Cross-validation rather than one holdout: on a few thousand rows a single 10% split moves by more than a point
+// from one seed to the next, which hides the changes worth measuring.
+var folds = ml.MulticlassClassification.CrossValidate(data, BuildPipeline(ml), Folds, seed: Seed);
+var macro = folds.Select(f => f.Metrics.MacroAccuracy).ToList();
+var macroMean = macro.Average();
+var macroSd = Math.Sqrt(macro.Sum(m => (m - macroMean) * (m - macroMean)) / (macro.Count - 1));
 
-if (metrics.MacroAccuracy < MinMacroAccuracy)
+int realHidden = 0, realTotal = 0, spamCaught = 0, spamTotal = 0;
+foreach (var fold in folds)
 {
-    Console.Error.WriteLine($"Macro accuracy is below {MinMacroAccuracy:F2}; not publishing this model.");
+    foreach (var (score, isSpam) in SpamScores(ml, fold.ScoredHoldOutSet))
+    {
+        if (isSpam)
+        {
+            spamTotal++;
+            if (score >= AppThreshold) spamCaught++;
+        }
+        else
+        {
+            realTotal++;
+            if (score >= AppThreshold) realHidden++;
+        }
+    }
+}
+var realHiddenRate = realHidden / (double)realTotal;
+var spamCaughtRate = spamCaught / (double)spamTotal;
+
+Console.WriteLine($"{Folds}-fold macro accuracy {macroMean:F4} (SD {macroSd:F4}; folds {string.Join(" ", macro.Select(m => m.ToString("F4", CultureInfo.InvariantCulture)))})");
+Console.WriteLine($"At threshold {AppThreshold}: real messages hidden {realHidden} of {realTotal} ({realHiddenRate:P2}), spam caught {spamCaught} of {spamTotal} ({spamCaughtRate:P2})");
+
+if (macroMean < MinMacroAccuracy || realHiddenRate > MaxRealHiddenRate)
+{
+    Console.Error.WriteLine($"Not publishing: needs macro accuracy >= {MinMacroAccuracy:P0} and at most {MaxRealHiddenRate:P0} of real messages hidden at {AppThreshold}.");
     return 1;
 }
 
-// The released model learns from every row; the split above only measured how well this pipeline generalizes.
+// The released model learns from every row; the folds above only measured how well this pipeline generalizes.
 var model = BuildPipeline(ml).Fit(data);
 
 Directory.CreateDirectory(outputDirectory);
@@ -75,33 +105,40 @@ var manifest = new JsonObject
     {
         ["rows"] = rows.Count,
         ["spamRows"] = spamCount,
-        ["macroAccuracy"] = Math.Round(metrics.MacroAccuracy, 4),
-        ["microAccuracy"] = Math.Round(metrics.MicroAccuracy, 4)
+        ["folds"] = Folds,
+        ["macroAccuracy"] = Math.Round(macroMean, 4),
+        ["macroAccuracySd"] = Math.Round(macroSd, 4),
+        ["threshold"] = AppThreshold,
+        ["realHiddenRate"] = Math.Round(realHiddenRate, 4),
+        ["spamCaughtRate"] = Math.Round(spamCaughtRate, 4)
     }
 };
 File.WriteAllText(Path.Combine(outputDirectory, "manifest.json"), manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"Model v{version} written to {outputDirectory}");
 return 0;
 
-// The pipeline Model Builder chose for the first model, with its tuned hyperparameters, so retraining only changes the data.
+// A linear model over the text features. Tree ensembles scored most messages at exactly 0 or 1, so the app's
+// threshold setting barely changed anything; this one gives graded scores and hid half as many real messages at
+// the same threshold in cross-validation. L2 0.03 was the best of the values tried.
 static IEstimator<ITransformer> BuildPipeline(MLContext ml) =>
     ml.Transforms.Text.FeaturizeText("Features", nameof(Row.Text))
         .Append(ml.Transforms.Conversion.MapValueToKey(nameof(Row.Label)))
-        .Append(ml.MulticlassClassification.Trainers.OneVersusAll(
-            ml.BinaryClassification.Trainers.FastTree(new FastTreeBinaryTrainer.Options
-            {
-                NumberOfLeaves = 288,
-                MinimumExampleCountPerLeaf = 11,
-                NumberOfTrees = 52,
-                MaximumBinCountPerFeature = 391,
-                FeatureFraction = 0.6822378736053805,
-                LearningRate = 0.9999997766729865,
-                LabelColumnName = nameof(Row.Label),
-                FeatureColumnName = "Features",
-                DiskTranspose = false
-            }),
-            labelColumnName: nameof(Row.Label)))
+        .Append(ml.MulticlassClassification.Trainers.LbfgsMaximumEntropy(
+            labelColumnName: nameof(Row.Label),
+            featureColumnName: "Features",
+            l1Regularization: 0,
+            l2Regularization: 0.03f))
         .Append(ml.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+
+// The scored label column is a key: its value is the 1-based index of the label among the key values.
+static IEnumerable<(float Score, bool IsSpam)> SpamScores(MLContext ml, IDataView scored)
+{
+    var labels = default(VBuffer<ReadOnlyMemory<char>>);
+    scored.Schema[nameof(Row.Label)].GetKeyValues(ref labels);
+    var spamIndex = labels.DenseValues().Select(v => v.ToString()).ToList().IndexOf(SpamLabel);
+    foreach (var p in ml.Data.CreateEnumerable<ScoredRow>(scored, false))
+        yield return (p.Score[spamIndex], p.Label == spamIndex + 1);
+}
 
 // The app finds the spam score by the label's position among the model's key values; check it can.
 static void VerifyLoads(string modelPath)
@@ -126,5 +163,11 @@ sealed class Row
 
 sealed class Prediction
 {
+    public float[] Score { get; set; } = [];
+}
+
+sealed class ScoredRow
+{
+    public uint Label { get; set; }
     public float[] Score { get; set; } = [];
 }
