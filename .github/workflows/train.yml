@@ -1,0 +1,72 @@
+name: Train model
+
+# Tag model-v<N> (e.g. model-v2) to train on data.json and publish model version N as the latest release.
+# The Gheychi app downloads the latest release's assets, and its release workflow bundles them.
+on:
+  push:
+    tags:
+      - 'model-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: train-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate tag
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^model-v([1-9][0-9]*)$ ]]; then
+            echo "::error::Tag '$tag' is not a model version (model-v2, model-v3, ...)."
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+
+          # Apps only install a model newer than theirs, so a lower number would be published but never installed.
+          latest=$(gh release list --limit 1000 --json tagName --jq '[.[].tagName | capture("^model-v(?<v>[0-9]+)$") | .v | tonumber] | max // 0')
+          if (( version <= latest )); then
+            echo "::error::Tag '$tag' is not newer than the latest released model v$latest. Tag model-v$((latest + 1)) or higher."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Normalizer tests
+        run: dotnet test Normalizer.Tests -c Release
+
+      - name: Train
+        run: dotnet run --project Trainer -c Release -- data.json "${{ steps.tag.outputs.version }}" "$RUNNER_TEMP/model"
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          dir="$RUNNER_TEMP/model"
+          notes=$(jq -r '"Trained on \(.metrics.rows) messages (\(.metrics.spamRows) spam). Macro accuracy \(.metrics.macroAccuracy), micro accuracy \(.metrics.microAccuracy) on a 10% holdout.\n\nNormalizer v\(.normalizer) · SHA-256 \(.sha256)"' "$dir/manifest.json")
+          gh release create "$TAG" "$dir/manifest.json" "$dir/spam.mlnet" \
+            --verify-tag --latest --title "Model v$VERSION" --notes "$notes"

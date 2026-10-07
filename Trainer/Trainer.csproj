@@ -1,14 +1,15 @@
-<!-- NormalizeTextAction/NormalizeTextAction.csproj -->
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <!-- Same ML.NET version as the Gheychi app, so the saved model loads there. -->
     <ItemGroup>
-        <PackageReference Include="System.Text.Json" Version="8.0.0" />
+        <PackageReference Include="Microsoft.ML" Version="5.0.0" />
+        <PackageReference Include="Microsoft.ML.FastTree" Version="5.0.0" />
     </ItemGroup>
 
     <ItemGroup>
