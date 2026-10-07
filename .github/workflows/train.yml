@@ -41,9 +41,13 @@ jobs:
           version="${BASH_REMATCH[1]}"
 
           # Apps only install a model newer than theirs, so a lower number would be published but never installed.
-          latest=$(gh release list --limit 1000 --json tagName --jq '[.[].tagName | capture("^model-v(?<v>[0-9]+)$") | .v | tonumber] | max // 0')
+          # Only releases carrying a model count: one made by hand on GitHub, or left empty by a failed run, does not.
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[] | select(any(.assets[]; .name == "manifest.json")) | .tag_name' \
+            | sed -n 's/^model-v\([0-9][0-9]*\)$/\1/p' | sort -n | tail -n 1)
+          latest=${latest:-0}
           if (( version <= latest )); then
-            echo "::error::Tag '$tag' is not newer than the latest released model v$latest. Tag model-v$((latest + 1)) or higher."
+            echo "::error::Tag '$tag' is not newer than the latest published model v$latest. Tag model-v$((latest + 1)) or higher."
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -68,5 +72,10 @@ jobs:
         run: |
           dir="$RUNNER_TEMP/model"
           notes=$(jq -r '"Trained on \(.metrics.rows) messages (\(.metrics.spamRows) spam). Macro accuracy \(.metrics.macroAccuracy), micro accuracy \(.metrics.microAccuracy) on a 10% holdout.\n\nNormalizer v\(.normalizer) · SHA-256 \(.sha256)"' "$dir/manifest.json")
-          gh release create "$TAG" "$dir/manifest.json" "$dir/spam.mlnet" \
-            --verify-tag --latest --title "Model v$VERSION" --notes "$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$dir/manifest.json" "$dir/spam.mlnet" --clobber
+            gh release edit "$TAG" --draft=false --prerelease=false --latest --title "Model v$VERSION" --notes "$notes"
+          else
+            gh release create "$TAG" "$dir/manifest.json" "$dir/spam.mlnet" \
+              --verify-tag --latest --title "Model v$VERSION" --notes "$notes"
+          fi
